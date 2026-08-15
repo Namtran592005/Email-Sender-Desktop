@@ -369,24 +369,62 @@ function createWindow() {
     },
   });
   const shouldScreenshot = process.argv.includes('--screenshot');
+  const isTest = process.argv.includes('--test');
   // NOTE: screenshot listener must be attached BEFORE any load()
   let screenCount = 0;
   if (shouldScreenshot) {
     let captured = false;
+    const capture = async (out) => {
+      try {
+        const img = await mainWindow.webContents.capturePage({ waitForFirstPaint: true });
+        fs.writeFileSync(out, img.toPNG());
+      } catch (e) {
+        fs.writeFileSync(out, Buffer.from(String(e)));
+      }
+    };
     mainWindow.webContents.on('did-finish-load', async () => {
       screenCount += 1;
       if (captured) return;
-      await new Promise((r) => setTimeout(r, 2800));
+      await new Promise((r) => setTimeout(r, 2500));
       try {
         captured = true;
-        const img = await mainWindow.webContents.capturePage({ waitForFirstPaint: true });
-        fs.writeFileSync('/tmp/email-sender-ui.png', img.toPNG());
+        if (isTest) {
+          // click the delete button of the first draft
+          const deleted = await mainWindow.webContents.executeJavaScript(`
+            (() => {
+              const btn = document.querySelector('button[aria-label="Xóa nháp"]');
+              if (!btn) return 'no-button';
+              btn.closest('button').click();
+              return 'clicked';
+            })()
+          `).catch(() => 'err');
+          await new Promise((r) => setTimeout(r, 800));
+          await capture('/tmp/email-sender-ui-after.png');
+          // report counts
+          const counts = await mainWindow.webContents.executeJavaScript(`window.smtpApi.list().then(a => a.length)`).catch(() => 'acc-err');
+          // use draftsApi via preload (exposed on window)
+          const draftCounts = await mainWindow.webContents.executeJavaScript(`
+            (async () => {
+              try {
+                const api = window.draftsApi || (window.api && window.api.draftsApi);
+                if (api && api.list) {
+                  const list = await api.list();
+                  return list.length;
+                }
+                return 'noapi';
+              } catch (e) { return 'err: ' + e.message; }
+            })()
+          `).catch(() => 'err');
+          fs.writeFileSync('/tmp/email-sender-test-result.json', JSON.stringify({ deleted, counts, draftCounts }));
+        } else {
+          await capture('/tmp/email-sender-ui.png');
+        }
       } catch (e) {
         fs.writeFileSync('/tmp/email-sender-ui.png', Buffer.from(String(e)));
       }
       app.quit();
     });
-    setTimeout(() => { if (screenCount === 0) app.quit(); }, 12000);
+    setTimeout(() => { if (screenCount === 0) app.quit(); }, 15000);
   }
   const urlArg = (() => {
     const idx = process.argv.indexOf('--url');

@@ -81,18 +81,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const saveDrafts = useCallback(async (list: Draft[]) => {
     await window.draftsApi.save(list);
-    setData((p) => ({ ...p, drafts: list }));
-  }, []);
+    await refresh();
+  }, [refresh]);
 
   const saveTemplates = useCallback(async (list: Template[]) => {
     await window.templatesApi.save(list);
-    setData((p) => ({ ...p, templates: list }));
-  }, []);
+    await refresh();
+  }, [refresh]);
 
   const saveSent = useCallback(async (list: SentEmail[]) => {
     await window.sentApi.save(list);
-    setData((p) => ({ ...p, sent: list }));
-  }, []);
+    await refresh();
+  }, [refresh]);
 
   const pickFiles = useCallback(async (options?: { multiple?: boolean }) => {
     return window.fileApi.pick(options);

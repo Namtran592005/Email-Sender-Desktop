@@ -29,15 +29,38 @@ Người dùng (Namtran592005) yêu cầu: "ok quay lại Email Sender. ta nên 
 - Trang settings OK: demo account hiển thị đúng
 - Typecheck đã PASS, build renderer PASS
 
-## Bước tiếp theo
-1. Sửa 3 lỗi typecheck → pnpm typecheck OK
-2. Chạy thử: pnpm dev (vite port 5173 + electron) trong sandbox headless → chụp ảnh màn hình xác nhận UI; nếu không chạy được X server thì pnpm build:renderer xong kiểm tra HTML
-3. pnpm build:win → release/ (có thể cần 7zip: apt install 7zip hoặc pnpm dlx)
-4. Push source lên GitHub (repo mới Namtran592005/Email-Sender-Desktop — private theo default), KHÔNG upload exe lên github
-5. Gửi user: exe portable + thông báo
+## ĐÃ HOÀN THÀNH (build + push)
+- Typecheck PASS, screenshot 5 trang UI đều OK (compose mở draft, settings, drafts, templates, sent)
+- Build: `CSC_IDENTITY_AUTO_DISCOVERY=false pnpm build:win` → release/Email Sender 1.0.0.exe (portable, 90MB). wine sign NSIS fail trên Linux → chỉ dùng target portable
+- Test wine: win-unpacked/Email Sender.exe chạy được (Chromium spawn OK) — xác nhận app khởi động trên Windows
+- Git: repo Namtran592005/Email-Sender-Desktop (đã tồn tại, private), push main thành công; .gitignore bỏ node_modules/dist/release
+- Còn lại: gửi user exe portable + screenshots
 
 ## Ghi chú bản mobile (nguồn tham chiếu)
 - Màn hình: Home (lịch sử), Compose (rich editor 3 chế độ write/code/preview, cc/bcc, đính kèm, mẫu), Drafts, Templates, Settings (SMTP)
 - SMTP config: host/port/user/pass/tls/fromName/fromEmail, nhiều tài khoản, mặc định, test kết nối
 - Logic build email: isFullHtml + buildEmailHtml + isValidEmail + formatBytes trong mobile src/lib
 - Gmail cần App password (quản lý tài khoản → bảo mật)
+
+## TASK MỚI (fix 3 lỗi desktop) — 2026-08-15
+Yêu cầu user: (1) nháp không xóa được, (2) lưu nháp tự động spawn quá nhiều, (3) Cc/Bcc xuống hàng như mobile.
+
+### Phân tích lỗi
+**Lỗi 1: không xóa được nháp** — race condition: DraftsScreen.remove(id) gọi saveDrafts(filter) → setData(drafts) → storeEvents.onUpdate('drafts') fired → refresh() gọi draftsApi.list() và đè lại data (refresh xảy ra sau setData nên list cũ từ main process có thể vẫn còn item vừa xóa nếu timing; khả năng cao hơn: ComposeScreen mount draft → open draft → save tự động sau 800ms đè lại item vừa xóa, vì ComposeScreen vẫn mở với draftIdRef = id → persistDraft(true) tạo lại nháp). Fix: khi xóa nháp trong DraftsScreen, nếu Compose đang mở nháp đó thì không có — nhưng race saveDrafts vs refresh; đơn giản nhất: saveDrafts không setData trực tiếp, mà refresh() luôn là nguồn sự thật duy nhất (setData(list) gây race); và refresh nên debounce nhẹ.
+**Lỗi 2: lưu nháp spawn quá nhiều** — saveTimer 800ms debounce nhưng mỗi keystroke gọi scheduleSave → clear+set lại OK, nhưng vấn đề: markDirty gọi cả khi không có thay đổi thực (vd focus). Fix: tăng debounce lên 3000ms + chỉ lưu khi body/subject/to/attachments/cc/bcc khác lần lưu trước (content hash) + tránh lưu sau khi gửi.
+**Lỗi 3: Cc/Bcc xuống hàng như mobile** — bản mobile (ComposeScreen.js old repo) cho phép nhập nhiều dòng: textarea mỗi dòng = 1 địa chỉ, tự parse khi gửi. Desktop hiện dùng CcBccModal + mảng string hiển thị chips. Fix: chuyển Cc/Bcc trong modal thành textarea mỗi dòng 1 địa chỉ (giống mobile) + parse theo dòng và dấu phẩy.
+
+### Fix plan
+1. AppProvider.saveDrafts: không setData trực tiếp — gọi api.save rồi refresh() (nguồn thật duy nhất). Tương tự saveTemplates/saveSent.
+2. ComposeScreen.scheduleSave: debounce 3000ms + prevSnapshotRef so sánh với lần lưu cuối; bỏ markDirty ở những chỗ không cần; sau khi gửi reset timer + dirtyRef=false.
+3. CcBccModal: textarea ' mỗi dòng một địa chỉ ' thay cho input + chip; parse: split [\n,]; validate isValidEmail.
+4. Typecheck → screenshot xác nhận → build: `CSC_IDENTITY_AUTO_DISCOVERY=false pnpm build:win` (chỉ portable) → push git → gửi.
+
+## Trạng thái fix task (2026-08-15 ~07:20)
+ĐÃ SỬA: (1) xóa nháp OK — saveDrafts giờ dùng refresh() duy nhất; test tích hợp --test xác nhận draftCounts=0 sau click xóa, ảnh "Chưa có nháp nào"; (2) auto-save debounce 3000ms + snapshot diff savedRef (chỉ lưu khi nội dung thực sự đổi, không lưu trùng sau gửi/load); (3) To + Cc/Bcc textarea xuống hàng như mobile, parse /[,\n]+/; placeholder 1 dòng; CcBccModal placeholder ví dụ xuống dòng.
+ĐÃ TEST: typecheck PASS, screenshot compose OK, test xóa nháp PASS (deleted=clicked, draftCounts=0).
+BUILD: `CSC_IDENTITY_AUTO_DISCOVERY=false pnpm build:win` — 2 lần đều bị "Break signaled" khi 7za nén 375MB app.asar (393MB) — khả năng sandbox kill do memory/CPU spike của 7za. Giải pháp: dùng electron-builder portable --x64 nhưng asar vẫn nặng; thử đặt asarUnpack ít hơn hoặc tăng RAM: kiểm tra swap (/swap/swapfile2, /swap/swapfile3 8GB mỗi cái — nếu mất thì tạo lại: sudo fallocate -l 8G /swap/swapfile2 && sudo mkswap && sudo swapon), hoặc build với --x64 và env FORCE_COLOR=0 để log nhẹ. Lần đầu build (trước fix) thành công trong ~8 phút, file exe 90MB; hiện tại chỉ khác code renderer (nhỏ hơn nhiều).
+Ghi chú: file asar app 375MB = win-unpacked resources; 7za cần ~1-2GB RAM khi nén.
+Sau khi build OK: cp "release/Email Sender 1.0.0.exe" /home/ubuntu/deliver/Email-Sender-1.0.0-portable.exe; git add -A; git commit -m "fix: xóa nháp, auto-save nhàn hơn, Cc/Bcc + To xuống hàng như mobile"; git push origin main; gửi user.
+Repo: https://github.com/Namtran592005/Email-Sender-Desktop (PAT classic: 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 — remote dùng token này).
+Ảnh giao diện có sẵn trong /home/ubuntu/deliver/ (ui-compose.png mới, ui-drafts.png trước fix, ui-settings.png, ui-templates.png, ui-sent.png).

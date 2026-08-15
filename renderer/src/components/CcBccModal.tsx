@@ -28,7 +28,7 @@ export function CcBccModal({
           <textarea
             value={ccText}
             onChange={(e) => setCcText(e.target.value)}
-            placeholder="email1@example.com, email2@example.com"
+            placeholder={`email1@example.com\nemail2@example.com\n(email3@example.com)`}
             style={{
               width: '100%', minHeight: 64, background: palette.inputBg, border: 'none', borderRadius: radii.sm,
               padding: 10, fontSize: 14, resize: 'vertical', outline: 'none',
@@ -38,7 +38,7 @@ export function CcBccModal({
           <textarea
             value={bccText}
             onChange={(e) => setBccText(e.target.value)}
-            placeholder="email1@example.com, email2@example.com"
+            placeholder={`email1@example.com\nemail2@example.com\n(email3@example.com)`}
             style={{
               width: '100%', minHeight: 64, background: palette.inputBg, border: 'none', borderRadius: radii.sm,
               padding: 10, fontSize: 14, resize: 'vertical', outline: 'none',

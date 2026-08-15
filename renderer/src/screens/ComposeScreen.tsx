@@ -39,8 +39,11 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
   const templateRef = useRef<Template | null>(null);
   const dirtyRef = useRef(false);
   const loadedRef = useRef(false);
+  const sentRef = useRef(false);
   const latestRef = useRef({ to: '', cc: [] as string[], bcc: [] as string[], subject: '', body: '', attachments: [] as Attachment[] });
+  const savedRef = useRef({ to: '', cc: [] as string[], bcc: [] as string[], subject: '', body: '', attachments: [] as Attachment[] });
   const saveTimer = useRef<number | null>(null);
+  const lastSaveAt = useRef(0);
 
   useEffect(() => {
     latestRef.current = { to, cc, bcc, subject, body, attachments };
@@ -67,11 +70,19 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
         const t = (restored.templateId && app.templates.find((x) => x.id === restored!.templateId)) || app.templates.find((x) => x.isDefault) || null;
         setTemplate(t);
         setDraftActive(true);
+        // snapshot the restored content so auto-save skips unchanged re-saves
+        savedRef.current = {
+          to: restored.to || '', cc: Array.isArray(restored.cc) ? restored.cc : [],
+          bcc: Array.isArray(restored.bcc) ? restored.bcc : [],
+          subject: restored.subject || '', body: restored.bodyHtml || '',
+          attachments: Array.isArray(restored.attachments) ? restored.attachments.filter((a) => a && a.data) : [],
+        };
         toast({ type: 'info', message: 'Đã khôi phục nháp.' });
       } else {
         const t = (templateId && app.templates.find((x) => x.id === templateId)) || app.templates.find((x) => x.isDefault) || null;
         setTemplate(t);
         setBody((t && t.bodyHtml) || '');
+        savedRef.current = { to: '', cc: [], bcc: [], subject: '', body: (t && t.bodyHtml) || '', attachments: [] };
       }
       if (mounted) { loadedRef.current = true; setLoaded(true); }
     })();
@@ -90,7 +101,10 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
   }, [loaded]);
 
   const persistDraft = useCallback(async (withId: boolean) => {
+    if (sentRef.current) return;
     const latest = latestRef.current;
+    const snapshotKey = JSON.stringify({ to: latest.to.trim(), cc: latest.cc, bcc: latest.bcc, subject: latest.subject.trim(), body: latest.body, count: latest.attachments.length });
+    if (snapshotKey === JSON.stringify({ to: savedRef.current.to, cc: savedRef.current.cc, bcc: savedRef.current.bcc, subject: savedRef.current.subject, body: savedRef.current.body, count: savedRef.current.attachments.length })) return;
     const payload: Draft = {
       id: draftIdRef.current || undefined,
       templateId: templateRef.current?.id,
@@ -104,13 +118,15 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
     next = [payload, ...next];
     await app.saveDrafts(next);
     draftIdRef.current = payload.id || null;
+    savedRef.current = { to: latest.to, cc: latest.cc, bcc: latest.bcc, subject: latest.subject, body: latest.body, attachments: latest.attachments };
+    lastSaveAt.current = Date.now();
     setDraftActive(true);
   }, [app]);
 
   const scheduleSave = useCallback(() => {
-    if (!loadedRef.current || !dirtyRef.current) return;
+    if (!loadedRef.current || !dirtyRef.current || sentRef.current) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => persistDraft(true), 800);
+    saveTimer.current = window.setTimeout(() => persistDraft(true), 3000);
   }, [persistDraft]);
 
   const markDirty = useCallback(() => {
@@ -197,16 +213,19 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
     if (!smtp) { toast({ type: 'error', message: 'Chọn tài khoản gửi thư.' }); return; }
     setSending(true);
     try {
-      const allRecipients = [...to.split(',').map((s) => s.trim()).filter(Boolean), ...cc, ...bcc];
+      const allRecipients = [...to.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean), ...cc, ...bcc];
       const html = buildEmailHtml(contentForSend());
       await app.sendEmail({
         to: to.trim(), cc, bcc, subject, html,
         attachments: attachments.map((a) => ({ id: a.id, name: a.name, data: a.data || '', mimeType: a.mimeType })),
       }, smtp.id);
       // remove draft
+      sentRef.current = true;
       let next = app.drafts.filter((d) => d.id !== draftIdRef.current);
       await app.saveDrafts(next);
       draftIdRef.current = null;
+      dirtyRef.current = false;
+      if (saveTimer.current) { window.clearTimeout(saveTimer.current); saveTimer.current = null; }
       // add to sent
       const sentItem = {
         id: `s${Date.now()}`,
@@ -226,7 +245,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
   };
 
   const handleSend = () => {
-    const allRecipients = [...to.split(',').map((s) => s.trim()).filter(Boolean), ...cc, ...bcc];
+    const allRecipients = [...to.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean), ...cc, ...bcc];
     if (allRecipients.length === 0 || !allRecipients.every(isValidEmail)) {
       toast({ type: 'error', message: 'Nhập đúng địa chỉ email người nhận.' }); return;
     }
@@ -255,6 +274,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
     setAttachments([]);
     editorRef.current?.setHtml('');
     if (codeRef.current) codeRef.current.value = '';
+    sentRef.current = false;
     dirtyRef.current = false;
     if (draftIdRef.current) {
       const next = app.drafts.filter((d) => d.id !== draftIdRef.current);
@@ -311,13 +331,13 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       <div style={{ padding: '14px 24px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ ...typography.label, width: 64 }}>To</span>
-          <input
+          <textarea
             value={to}
             onChange={(e) => { setTo(e.target.value); markDirty(); }}
-            placeholder="email@example.com (nhiều địa chỉ cách nhau bằng dấu phẩy)"
+            placeholder="email@example.com — mỗi dòng một địa chỉ"
             style={{
               flex: 1, background: palette.inputBg, border: 'none', borderRadius: radii.sm, padding: '9px 12px',
-              fontSize: 14, outline: 'none',
+              fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5',
             }}
           />
           <button

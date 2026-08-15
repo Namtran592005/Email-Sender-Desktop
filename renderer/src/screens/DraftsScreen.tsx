@@ -53,6 +53,8 @@ export default function DraftsScreen({ onOpenDraft }: DraftsProps) {
                 </div>
               </div>
               <button
+                data-testid={`draft-delete-${d.id}`}
+                aria-label="Xóa nháp"
                 onClick={(e) => { e.stopPropagation(); remove(d.id || ''); }}
                 style={{ background: 'transparent', border: `1px solid rgba(255,59,48,0.3)`, borderRadius: radii.pill, padding: '6px 10px', cursor: 'pointer', color: palette.error }}
               >
