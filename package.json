@@ -1,0 +1,46 @@
+{
+  "name": "email-sender-desktop",
+  "version": "1.0.0",
+  "description": "Ứng dụng desktop soạn và gửi email HTML qua SMTP — phiên bản PC của Email Sender",
+  "main": "main/main.mjs",
+  "scripts": {
+    "build:renderer": "vite build",
+    "start": "electron .",
+    "build:win": "pnpm build:renderer && electron-builder --win portable --x64",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module",
+  "build": {
+    "appId": "com.emailsender.desktop",
+    "productName": "Email Sender",
+    "directories": { "output": "release" },
+    "files": [
+      "dist/**/*",
+      "main/**/*",
+      "preload/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["portable"],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "lucide-react": "^1.31.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}
