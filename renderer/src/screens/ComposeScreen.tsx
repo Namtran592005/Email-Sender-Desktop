@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, Paperclip, BookOpenText, AtSign, RotateCcw, Plus, X, Save } from 'lucide-react';
-import { palette, radii, shadows, typography } from '../theme';
+import { palette, radii, shadows, typography, transitions } from '../theme';
 import { useApp } from '../AppProvider';
 import { useToast } from '../components/Toast';
 import { Toolbar } from '../components/Toolbar';
 import RichEditor, { type RichEditorHandle } from '../components/RichEditor';
 import { CodeEditor, Preview } from '../components/CodePreview';
 import { CcBccModal } from '../components/CcBccModal';
+import { LinkModal } from '../components/LinkModal';
 import { ColorPickerModal } from '../components/ColorPickerModal';
 import { AccountPickerModal } from '../components/AccountPickerModal';
 import { TemplateLibrary } from '../components/TemplateLibrary';
@@ -165,9 +166,8 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       case 'undo': e.runCommand('undo'); break;
       case 'clear': e.runCommand('removeFormat'); break;
       case 'link': {
-        const url = window.prompt('Nhập địa chỉ link:', 'https://');
-        if (url) e.runCommand('createLink', url);
-        break;
+        setLinkOpen(true);
+        return;
       }
       case 'color': {
         if (value) {
@@ -228,6 +228,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
 
   const [ccbccOpen, setCcbccOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const [recentColors, setRecentColors] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('esd-recent-colors') || '[]'); } catch { return []; }
   });
@@ -382,14 +383,19 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
           />
           <button
             onClick={() => setCcbccOpen(true)}
+            aria-label="Mở Cc / Bcc"
             style={{
-              background: cc.length || bcc.length ? palette.bgSoft : 'transparent',
-              border: `1px solid ${cc.length || bcc.length ? palette.hairline : 'transparent'}`,
-              borderRadius: radii.pill, padding: '6px 12px', fontSize: 13, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5, color: palette.body,
+              background: cc.length || bcc.length ? palette.ink : 'rgba(28,28,30,0.06)',
+              border: 'none', borderRadius: 999, padding: '7px 13px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+              color: cc.length || bcc.length ? '#F0D78C' : palette.body,
+              boxShadow: cc.length || bcc.length ? shadows.btn : 'none',
+              transition: transitions.fast, flexShrink: 0,
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
           >
-            <AtSign size={14} /> {cc.length || bcc.length ? `Cc ${cc.length} · Bcc ${bcc.length}` : 'Cc / Bcc'}
+            <AtSign size={13} /> {cc.length || bcc.length ? `${cc.length + bcc.length} Cc/Bcc` : 'Cc / Bcc'}
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -484,6 +490,12 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
 
       {colorOpen && (
         <ColorPickerModal initial={COLORS[1]} recent={recentColors} onApply={handleApplyColor} onClose={() => setColorOpen(false)} />
+      )}
+      {linkOpen && (
+        <LinkModal
+          onApply={(url) => { editorRef.current?.runCommand('createLink', url); setLinkOpen(false); }}
+          onClose={() => setLinkOpen(false)}
+        />
       )}
       {ccbccOpen && (
         <CcBccModal cc={cc} bcc={bcc} onSave={(c, b) => { setCc(c); setBcc(b); setCcbccOpen(false); markDirty(); }} onClose={() => setCcbccOpen(false)} />

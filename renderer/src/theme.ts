@@ -33,6 +33,8 @@ export const shadows = {
   soft: '0 3px 8px rgba(0,0,0,0.04)',
   circle: '0 5px 14px rgba(0,0,0,0.08)',
   lift: '0 10px 30px rgba(0,0,0,0.10)',
+  modal: '0 24px 64px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.08)',
+  btn: '0 3px 10px rgba(0,0,0,0.16)',
 };
 
 export const fonts = {
