@@ -9,6 +9,9 @@ declare global {
       test: (account: unknown) => Promise<{ ok: boolean; message?: string }>;
       send: (payload: { mail: unknown; accountId: string }) => Promise<{ ok: boolean; message?: string }>;
     };
+    dataApi: {
+      clear: () => Promise<{ ok: boolean; message?: string }>;
+    };
     fileApi: {
       pick: (options?: { multiple?: boolean }) => Promise<{ canceled: boolean; files: { id: string; name: string; size: number; data: string }[] }>;
     };

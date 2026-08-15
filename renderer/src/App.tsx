@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   PenSquare, FileText, BookOpenText, Send, Settings, Plus,
 } from 'lucide-react';
-import { palette, radii, shadows, typography } from './theme';
+import { palette, radii, shadows, typography, transitions } from './theme';
 import { AppProvider, useApp } from './AppProvider';
 import { ToastProvider } from './components/Toast';
 import ComposeScreen from './screens/ComposeScreen';
@@ -63,13 +64,13 @@ function Shell() {
       {/* Sidebar */}
       <aside style={{
         width: 236, background: palette.sidebar, borderRight: `1px solid ${palette.cardBorder}`,
-        display: 'flex', flexDirection: 'column', padding: '20px 14px', flexShrink: 0,
+        display: 'flex', flexDirection: 'column', padding: '22px 14px', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '4px 10px', marginBottom: 20 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: radii.md, background: palette.gold,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: 17,
-            boxShadow: shadows.circle,
+            width: 40, height: 40, borderRadius: 14, background: palette.gold,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F0D78C', fontWeight: 800, fontSize: 19,
+            boxShadow: shadows.circle, border: `1px solid rgba(255,255,255,0.6)`,
           }}>
             ✉
           </div>
@@ -83,33 +84,45 @@ function Shell() {
           onClick={() => openCompose()}
           style={{
             background: palette.gold, color: '#FFF', border: 'none', borderRadius: radii.pill,
-            padding: '11px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 18,
+            padding: '12px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            boxShadow: shadows.circle,
+            boxShadow: shadows.circle, transition: transitions.fast,
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
         >
           <PenSquare size={16} /> Soạn thư mới
         </button>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {NAV.map((item) => {
             const active = page === item.id;
             const Icon = item.icon;
             const count = item.badge?.(app);
             return (
-              <button
+              <motion.button
                 key={item.id}
                 onClick={() => setPage(item.id)}
+                whileTap={{ scale: 0.98 }}
                 style={{
-                  background: active ? palette.bgSoft : 'transparent',
-                  border: active ? `1.5px solid ${palette.hairline}` : '1.5px solid transparent',
-                  borderRadius: radii.md,
-                  padding: '10px 12px',
-                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: active ? '#FFFFFF' : 'transparent',
+                  border: '1.5px solid transparent',
+                  borderLeft: `3px solid ${active ? palette.gold : 'transparent'}`,
+                  borderRadius: '10px 14px 14px 10px',
+                  padding: '11px 12px 11px 14px',
+                  display: 'flex', alignItems: 'center', gap: 11,
                   cursor: 'pointer',
                   color: active ? palette.ink : palette.body,
                   fontSize: 14,
                   fontWeight: active ? 600 : 500,
+                  boxShadow: active ? '0 2px 6px rgba(0,0,0,0.05)' : 'none',
+                  transition: transitions.fast,
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.035)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.background = 'transparent';
                 }}
               >
                 <Icon size={17} color={active ? palette.ink : palette.mutedStrong} />
@@ -122,23 +135,25 @@ function Shell() {
                     {count}
                   </span>
                 )}
-              </button>
+              </motion.button>
             );
           })}
         </nav>
 
-        <div style={{ marginTop: 'auto', ...typography.caption, color: palette.muted, padding: '12px 8px 0' }}>
-          Dữ liệu lưu cục bộ trên máy của bạn. Không tải thư lên bất kỳ máy chủ nào.
-        </div>
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        {page === 'compose' && <ComposeScreen key={composeKey} draftId={draftId} templateId={templateId} onDone={() => setPage('sent')} />}
-        {page === 'drafts' && <DraftsScreen onOpenDraft={(id) => openCompose({ draftId: id })} />}
-        {page === 'templates' && <TemplatesScreen onUseTemplate={(id) => openCompose({ templateId: id })} />}
-        {page === 'sent' && <SentScreen />}
-        {page === 'settings' && <SettingsScreen />}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', background: palette.bg }}>
+        <motion.div key={page} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto', flex: 1 }}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}>
+          {page === 'compose' && <ComposeScreen key={composeKey} draftId={draftId} templateId={templateId} onDone={() => setPage('sent')} />}
+          {page === 'drafts' && <DraftsScreen onOpenDraft={(id) => openCompose({ draftId: id })} />}
+          {page === 'templates' && <TemplatesScreen onUseTemplate={(id) => openCompose({ templateId: id })} />}
+          {page === 'sent' && <SentScreen />}
+          {page === 'settings' && <SettingsScreen />}
+        </motion.div>
       </main>
     </div>
   );

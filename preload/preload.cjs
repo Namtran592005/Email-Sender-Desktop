@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('smtpApi', {
   send: (payload) => ipcRenderer.invoke('smtp:send', payload),
 });
 
+contextBridge.exposeInMainWorld('dataApi', {
+  clear: () => ipcRenderer.invoke('data:clear'),
+});
+
 contextBridge.exposeInMainWorld('fileApi', {
   pick: (options) => ipcRenderer.invoke('file:pick', options),
 });

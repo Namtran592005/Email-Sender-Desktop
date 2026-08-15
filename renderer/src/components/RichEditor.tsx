@@ -18,6 +18,9 @@ const RichEditor = forwardRef<RichEditorHandle, { initialHtml?: string; onChange
   const readyRef = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // Selection saved when the editor last had focus, so toolbar button clicks
+  // (which steal focus) can restore the caret/range before running a command.
+  const savedRange = useRef<{ start: number; end: number } | null>(null);
 
   useImperativeHandle(ref, () => ({
     setHtml: (html: string) => {
@@ -30,15 +33,73 @@ const RichEditor = forwardRef<RichEditorHandle, { initialHtml?: string; onChange
     runCommand: (cmd: string, value?: string) => {
       const doc = iframeRef.current?.contentDocument;
       if (!doc) return;
+      restoreSelection(doc);
+      if (cmd === 'removeFormat') {
+        // deselect everything after clearing formats so subsequent typing is plain
+        doc.execCommand('selectAll', false);
+        doc.execCommand('removeFormat', false);
+        doc.defaultView?.getSelection()?.removeAllRanges();
+        doc.defaultView?.focus();
+        return;
+      }
       doc.execCommand(cmd, false, value);
       doc.defaultView?.focus();
+      saveSelection(doc);
     },
     setColor: (color: string) => {
       const doc = iframeRef.current?.contentDocument;
       if (!doc) return;
+      restoreSelection(doc);
       doc.execCommand('foreColor', false, color);
+      doc.defaultView?.focus();
+      saveSelection(doc);
     },
   }), []);
+
+  function saveSelection(doc: Document) {
+    const sel = doc.defaultView?.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const pre = doc.createRange();
+    pre.selectNodeContents(doc.body);
+    pre.setEnd(range.startContainer, range.startOffset);
+    const start = pre.toString().length;
+    const end = start + range.toString().length;
+    savedRange.current = { start, end };
+  }
+
+  function restoreSelection(doc: Document) {
+    if (!savedRange.current) {
+      doc.defaultView?.focus();
+      return;
+    }
+    const body = doc.body;
+    if (!body) return;
+    const { start, end } = savedRange.current;
+    const walker = doc.createTreeWalker(body, 4 /* NodeFilter.SHOW_TEXT */);
+    let offset = 0;
+    let startNode: Text | null = null;
+    let startOff = 0;
+    let endNode: Text | null = null;
+    let endOff = 0;
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const len = node.textContent?.length || 0;
+      if (!startNode && offset + len >= start) { startNode = node; startOff = start - offset; }
+      if (!endNode && offset + len >= end) { endNode = node; endOff = end - offset; break; }
+      offset += len;
+    }
+    const range = doc.createRange();
+    if (startNode && endNode) {
+      range.setStart(startNode, Math.min(startOff, startNode.textContent?.length || 0));
+      range.setEnd(endNode, Math.min(endOff, endNode.textContent?.length || 0));
+    } else {
+      range.selectNodeContents(body);
+    }
+    const sel = doc.defaultView?.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
 
   const onLoad = () => {
     const doc = iframeRef.current?.contentDocument;

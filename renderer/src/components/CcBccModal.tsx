@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'
+import { motion } from 'framer-motion';
 import { palette, radii, shadows, typography } from '../theme';
 
 export function CcBccModal({
@@ -12,11 +13,15 @@ export function CcBccModal({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(17,17,17,0.45)', display: 'flex',
+      position: 'fixed', inset: 0, background: 'rgba(17,17,17,0.45)', display: 'flex', backdropFilter: 'blur(3px)',
       alignItems: 'center', justifyContent: 'center', zIndex: 100,
     }} onClick={onClose}>
-      <div
+      <motion.div
         onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 4 }}
+        transition={{ duration: 0.16 }}
         style={{ background: '#FFF', borderRadius: radii.xl, boxShadow: shadows.card, width: 'min(520px, 88vw)', overflow: 'hidden' }}
       >
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.cardBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -54,7 +59,7 @@ export function CcBccModal({
             Lưu
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

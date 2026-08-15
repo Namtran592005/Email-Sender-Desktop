@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { palette, radii, shadows, typography } from '../theme';
 import { useApp } from '../AppProvider';
 import { useToast } from '../components/Toast';
@@ -210,6 +211,37 @@ export default function SettingsScreen() {
             </div>
           );
         })}
+      </div>
+
+      {/* Data management */}
+      <div style={{ marginTop: 32, borderTop: `1px solid ${palette.cardBorder}`, paddingTop: 20 }}>
+        <div style={{ ...typography.subtitle, fontSize: 16, marginBottom: 6 }}>Dữ liệu</div>
+        <p style={{ ...typography.caption, color: palette.mutedStrong, marginTop: 0, maxWidth: 640 }}>
+          Tài khoản SMTP, nháp, mẫu thư và thư đã gửi được lưu dưới dạng tệp JSON trong thư mục dữ liệu riêng của ứng dụng trên máy của bạn.
+        </p>
+        <button
+          onClick={async () => {
+            const ok = window.confirm('Xóa toàn bộ dữ liệu (tài khoản SMTP, nháp, mẫu, thư đã gửi)?\nHành động này không thể hoàn tác.');
+            if (!ok) return;
+            const res = await window.dataApi.clear();
+            if (res.ok) {
+              await app.saveAccounts([], '');
+              await app.saveDrafts([]);
+              await app.saveTemplates([]);
+              await app.saveSent([]);
+              toast({ type: 'success', message: 'Đã xóa toàn bộ dữ liệu.' });
+            } else {
+              toast({ type: 'error', message: res.message || 'Không thể xóa dữ liệu.' });
+            }
+          }}
+          style={{
+            background: 'transparent', border: `1px solid rgba(255,59,48,0.4)`, color: palette.error,
+            borderRadius: radii.pill, padding: '10px 22px', fontSize: 14, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500,
+          }}
+        >
+          <Trash2 size={15} /> Xóa dữ liệu
+        </button>
       </div>
     </div>
   );

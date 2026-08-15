@@ -7,6 +7,7 @@ import { Toolbar } from '../components/Toolbar';
 import RichEditor, { type RichEditorHandle } from '../components/RichEditor';
 import { CodeEditor, Preview } from '../components/CodePreview';
 import { CcBccModal } from '../components/CcBccModal';
+import { ColorPickerModal } from '../components/ColorPickerModal';
 import { AccountPickerModal } from '../components/AccountPickerModal';
 import { TemplateLibrary } from '../components/TemplateLibrary';
 import { buildEmailHtml, formatBytes, isValidEmail, type Attachment, type Draft, type Template } from '../lib';
@@ -102,6 +103,10 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
 
   const persistDraft = useCallback(async (withId: boolean) => {
     if (sentRef.current) return;
+    // Respect permanent deletion: if this draft id was removed from the
+    // drafts list (e.g. from the Nháp screen), do not resurrect it.
+    const deleteSet = (window as unknown as { __pendingDraftDeletes?: Set<string> }).__pendingDraftDeletes;
+    if (deleteSet?.has(draftIdRef.current || '')) return;
     const latest = latestRef.current;
     const snapshotKey = JSON.stringify({ to: latest.to.trim(), cc: latest.cc, bcc: latest.bcc, subject: latest.subject.trim(), body: latest.body, count: latest.attachments.length });
     if (snapshotKey === JSON.stringify({ to: savedRef.current.to, cc: savedRef.current.cc, bcc: savedRef.current.bcc, subject: savedRef.current.subject, body: savedRef.current.body, count: savedRef.current.attachments.length })) return;
@@ -160,10 +165,28 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
         break;
       }
       case 'color': {
-        if (value) e.setColor(value);
+        if (value) {
+          e.setColor(value);
+          pushRecent(value);
+        } else {
+          setColorOpen(true);
+        }
         break;
       }
     }
+    markDirty();
+  };
+
+  const pushRecent = (color: string) => {
+    const list = [color, ...recentRef.current.filter((c) => c.toUpperCase() !== color.toUpperCase())].slice(0, 8);
+    recentRef.current = list;
+    setRecentColors(list);
+    localStorage.setItem('esd-recent-colors', JSON.stringify(list));
+  };
+
+  const handleApplyColor = (hex: string) => {
+    editorRef.current?.setColor(hex);
+    pushRecent(hex);
     markDirty();
   };
 
@@ -199,6 +222,11 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
   };
 
   const [ccbccOpen, setCcbccOpen] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
+  const [recentColors, setRecentColors] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('esd-recent-colors') || '[]'); } catch { return []; }
+  });
+  const recentRef = useRef<string[]>(recentColors);
   const [accountPickerOpen, setAccountPickerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [pickedAccountId, setPickedAccountId] = useState<string | null>(null);
@@ -221,6 +249,9 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       }, smtp.id);
       // remove draft
       sentRef.current = true;
+      const deleteSet = (window as unknown as { __pendingDraftDeletes?: Set<string> }).__pendingDraftDeletes;
+      if (!deleteSet) (window as unknown as { __pendingDraftDeletes: Set<string> }).__pendingDraftDeletes = new Set();
+      if (draftIdRef.current) (window as unknown as { __pendingDraftDeletes: Set<string> }).__pendingDraftDeletes.add(draftIdRef.current);
       let next = app.drafts.filter((d) => d.id !== draftIdRef.current);
       await app.saveDrafts(next);
       draftIdRef.current = null;
@@ -277,6 +308,10 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
     sentRef.current = false;
     dirtyRef.current = false;
     if (draftIdRef.current) {
+      // permanent-delete so any lingering auto-save cannot bring it back
+      const deleteSet = (window as unknown as { __pendingDraftDeletes?: Set<string> }).__pendingDraftDeletes;
+      if (!deleteSet) (window as unknown as { __pendingDraftDeletes: Set<string> }).__pendingDraftDeletes = new Set();
+      (window as unknown as { __pendingDraftDeletes: Set<string> }).__pendingDraftDeletes.add(draftIdRef.current);
       const next = app.drafts.filter((d) => d.id !== draftIdRef.current);
       await app.saveDrafts(next);
     }
@@ -442,6 +477,9 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
         </div>
       )}
 
+      {colorOpen && (
+        <ColorPickerModal initial={COLORS[1]} recent={recentColors} onApply={handleApplyColor} onClose={() => setColorOpen(false)} />
+      )}
       {ccbccOpen && (
         <CcBccModal cc={cc} bcc={bcc} onSave={(c, b) => { setCc(c); setBcc(b); setCcbccOpen(false); markDirty(); }} onClose={() => setCcbccOpen(false)} />
       )}

@@ -13,14 +13,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = (!app.isPackaged || process.argv.includes('--dev')) && !process.argv.includes('--no-dev');
 
 // ---------------------------------------------------------------------------
-// Data store — JSON files under ~/.email-sender-desktop/
+// Data store — self-created `data/` folder with one JSON file per store:
+//   {base}/data/accounts.json | drafts.json | templates.json | sent.json
+// where base = app.getPath('userData') (packed) or ~/.email-sender-desktop (dev).
 // ---------------------------------------------------------------------------
 function userDataDir() {
   if (isDev) return path.join(app.getPath('home'), '.email-sender-desktop');
   return app.getPath('userData');
 }
 function ensureDir() {
-  const dir = userDataDir();
+  const dir = path.join(userDataDir(), 'data');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -483,6 +485,24 @@ ipcMain.handle('smtp:send', async (event, { mail, accountId }) => {
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e.message };
+  }
+});
+
+// Clear all local data: deletes every JSON file in the self-created data/ folder.
+ipcMain.handle('data:clear', () => {
+  try {
+    const dir = ensureDir();
+    for (const file of fs.readdirSync(dir)) {
+      if (file.endsWith('.json')) fs.unlinkSync(path.join(dir, file));
+    }
+    smtpAccounts = [];
+    defaultSmtpId = '';
+    draftsStore.write([]);
+    templatesStore.write([]);
+    sentStore.write([]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: String(e && e.message ? e.message : e) };
   }
 });
 

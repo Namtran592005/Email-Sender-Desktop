@@ -4,6 +4,12 @@ import { palette, radii, shadows, typography } from '../theme';
 import { useApp } from '../AppProvider';
 import { useToast } from '../components/Toast';
 
+function getDeleteSet(): Set<string> {
+  const w = window as unknown as { __pendingDraftDeletes?: Set<string> };
+  if (!w.__pendingDraftDeletes) w.__pendingDraftDeletes = new Set();
+  return w.__pendingDraftDeletes;
+}
+
 interface DraftsProps { onOpenDraft: (id: string) => void; }
 
 export default function DraftsScreen({ onOpenDraft }: DraftsProps) {
@@ -11,6 +17,9 @@ export default function DraftsScreen({ onOpenDraft }: DraftsProps) {
   const toast = useToast();
 
   const remove = async (id: string) => {
+    // Mark as permanently deleted: even if the compose screen still has this
+    // draft open and tries to auto-save, it will be dropped.
+    getDeleteSet().add(id);
     await app.saveDrafts(app.drafts.filter((d) => d.id !== id));
     toast({ type: 'info', message: 'Đã xóa nháp.' });
   };
