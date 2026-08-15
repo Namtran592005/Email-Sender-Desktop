@@ -363,6 +363,7 @@ function createWindow() {
     minHeight: 680,
     title: 'Email Sender',
     backgroundColor: '#FFFFFF',
+    icon: path.join(__dirname, '..', 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.cjs'),
       contextIsolation: true,
