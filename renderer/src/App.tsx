@@ -66,18 +66,8 @@ function Shell() {
         width: 236, background: palette.sidebar, borderRight: `1px solid ${palette.cardBorder}`,
         display: 'flex', flexDirection: 'column', padding: '22px 14px', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '4px 10px', marginBottom: 20 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 14, background: palette.gold,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F0D78C', fontWeight: 800, fontSize: 19,
-            boxShadow: shadows.circle, border: `1px solid rgba(255,255,255,0.6)`,
-          }}>
-            ✉
-          </div>
-          <div>
-            <div style={{ ...typography.subtitle, fontSize: 17 }}>Email Sender</div>
-            <div style={{ ...typography.caption }}>Gửi thư HTML trực tiếp</div>
-          </div>
+        <div style={{ padding: '4px 10px', marginBottom: 20 }}>
+          <div style={{ ...typography.title, fontSize: 18 }}>Email Sender</div>
         </div>
 
         <button

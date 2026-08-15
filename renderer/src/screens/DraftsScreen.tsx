@@ -20,7 +20,13 @@ export default function DraftsScreen({ onOpenDraft }: DraftsProps) {
     // Mark as permanently deleted: even if the compose screen still has this
     // draft open and tries to auto-save, it will be dropped.
     getDeleteSet().add(id);
-    await app.saveDrafts(app.drafts.filter((d) => d.id !== id));
+    // Re-fetch the latest list from disk first (like the SMTP accounts flow),
+    // then write it back without the target draft. This avoids resurrecting a
+    // draft that the compose screen wrote concurrently.
+    const fresh = await window.draftsApi.list();
+    const next = (fresh as { id?: string }[]).filter((d) => d.id && d.id !== id);
+    await window.draftsApi.save(next);
+    await app.refresh();
     toast({ type: 'info', message: 'Đã xóa nháp.' });
   };
 

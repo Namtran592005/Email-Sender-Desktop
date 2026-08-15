@@ -110,8 +110,11 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
     const latest = latestRef.current;
     const snapshotKey = JSON.stringify({ to: latest.to.trim(), cc: latest.cc, bcc: latest.bcc, subject: latest.subject.trim(), body: latest.body, count: latest.attachments.length });
     if (snapshotKey === JSON.stringify({ to: savedRef.current.to, cc: savedRef.current.cc, bcc: savedRef.current.bcc, subject: savedRef.current.subject, body: savedRef.current.body, count: savedRef.current.attachments.length })) return;
+    // Always guarantee a real id: an `undefined` id made previous drafts
+    // impossible to delete (filter d.id !== '' never matched them).
+    const realId = draftIdRef.current || (draftIdRef.current = `d${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     const payload: Draft = {
-      id: draftIdRef.current || undefined,
+      id: realId,
       templateId: templateRef.current?.id,
       to: latest.to, cc: latest.cc, bcc: latest.bcc,
       subject: latest.subject, bodyHtml: latest.body,
@@ -119,10 +122,12 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       updatedAt: Date.now(),
     };
     if (withId && !latest.body && !latest.subject && !latest.to) return;
-    let next = app.drafts.filter((d) => d.id !== (payload.id || draftIdRef.current));
+    // Drop any draft that has no id at all (legacy bad entries) and any
+    // entry that shares this draft's id so we never duplicate rows.
+    let next = app.drafts.filter((d) => d.id && d.id !== realId);
     next = [payload, ...next];
     await app.saveDrafts(next);
-    draftIdRef.current = payload.id || null;
+    draftIdRef.current = realId;
     savedRef.current = { to: latest.to, cc: latest.cc, bcc: latest.bcc, subject: latest.subject, body: latest.body, attachments: latest.attachments };
     lastSaveAt.current = Date.now();
     setDraftActive(true);

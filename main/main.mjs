@@ -385,6 +385,7 @@ function createWindow() {
       }
     };
     mainWindow.webContents.on('did-finish-load', async () => {
+      
       screenCount += 1;
       if (captured) return;
       await new Promise((r) => setTimeout(r, 2500));
@@ -417,10 +418,16 @@ function createWindow() {
               } catch (e) { return 'err: ' + e.message; }
             })()
           `).catch(() => 'err');
-          fs.writeFileSync('/tmp/email-sender-test-result.json', JSON.stringify({ deleted, counts, draftCounts }));
+          try {
+            fs.writeFileSync('/tmp/email-sender-test-result.json', JSON.stringify({ deleted, counts, draftCounts }));
+            
+          } catch (err) {
+            
+          }
         } else {
           await capture('/tmp/email-sender-ui.png');
         }
+        
       } catch (e) {
         fs.writeFileSync('/tmp/email-sender-ui.png', Buffer.from(String(e)));
       }
@@ -436,12 +443,10 @@ function createWindow() {
   if (isDev && !urlArg) {
     mainWindow.loadURL('http://localhost:5173' + (urlArg || '')).catch(() => {});
   } else if (urlArg) {
-    // file:// URLs with query strings may not fire did-finish-load reliably;
-    // set the query after the first page completes.
-    mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.webContents.executeJavaScript(`location.search = ${JSON.stringify(urlArg)};`).catch(() => {});
-    });
-    mainWindow.loadFile(base);
+    // loadFile supports a query option natively and did-finish-load still
+    // fires, so the screenshot/test listener works without a reload trick.
+    
+    mainWindow.loadFile(base, { query: Object.fromEntries(new URLSearchParams(urlArg.replace(/^\?/, ''))) });
   } else {
     mainWindow.loadFile(base);
   }
