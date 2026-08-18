@@ -4,8 +4,10 @@ import { palette, radii, shadows, typography } from '../theme';
 import { useApp } from '../AppProvider';
 import { useToast } from '../components/Toast';
 import { formatBytes, type SentEmail } from '../lib';
+import { useLanguage } from '../i18n';
 
-export default function SentScreen() {
+export default function SentScreen({ onReuse }: { onReuse: (email: SentEmail) => void }) {
+  const { t } = useLanguage();
   const app = useApp();
   const toast = useToast();
   const [selected, setSelected] = useState<SentEmail | null>(null);
@@ -52,8 +54,14 @@ export default function SentScreen() {
       <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         {selected ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
               <h3 style={{ ...typography.title, fontSize: 22, margin: 0, flex: 1 }}>{selected.subject}</h3>
+              <button onClick={() => onReuse(selected)} style={{
+                background: palette.gold, border: 'none', borderRadius: radii.pill,
+                padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#FFF', display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <Send size={13} /> {t('reuse')}
+              </button>
               <button onClick={() => remove(selected.id)} style={{
                 background: 'transparent', border: `1px solid rgba(255,59,48,0.3)`, borderRadius: radii.pill,
                 padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: palette.error, display: 'flex', alignItems: 'center', gap: 5,

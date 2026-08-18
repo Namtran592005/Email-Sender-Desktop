@@ -29,29 +29,30 @@ export function CcBccModal({
       >
         {/* Header */}
         <div style={{
-          padding: '16px 20px', background: palette.ink, color: '#FFF',
+          padding: '16px 20px', background: '#FFF', color: palette.ink,
+          borderBottom: `1px solid ${palette.cardBorder}`,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 11, background: 'rgba(240,215,140,0.16)',
+            width: 34, height: 34, borderRadius: 11, background: palette.goldSoft,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <MailPlus size={17} color="#F0D78C" />
+            <MailPlus size={17} color={palette.gold} />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700 }}>Thêm Cc / Bcc</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)' }}>Mỗi dòng một địa chỉ email</div>
+            <div style={{ fontSize: 11.5, color: palette.muted }}>Mỗi dòng một địa chỉ email</div>
           </div>
           <button
             onClick={onClose}
             aria-label="Đóng"
             style={{
-              background: 'rgba(255,255,255,0.10)', border: 'none', borderRadius: 9, width: 30, height: 30,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#FFF',
+              background: '#FFF', border: `1px solid ${palette.hairline}`, borderRadius: 9, width: 30, height: 30,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: palette.mutedStrong,
               transition: transitions.fast,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.22)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = palette.inputBg)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = '#FFF')}
           >
             <X size={15} />
           </button>
@@ -110,7 +111,7 @@ export function CcBccModal({
             <button
               onClick={() => onSave(split(ccText), split(bccText))}
               style={{
-                background: palette.ink, color: '#FFF', border: 'none', borderRadius: 999, padding: '9px 24px',
+                background: palette.gold, color: '#FFF', border: 'none', borderRadius: 999, padding: '9px 24px',
                 fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                 boxShadow: shadows.btn, transition: transitions.fast,
               }}

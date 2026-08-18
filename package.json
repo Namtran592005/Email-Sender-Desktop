@@ -1,7 +1,7 @@
 {
   "name": "email-sender-desktop",
-  "version": "1.0.0",
-  "description": "Ứng dụng desktop soạn và gửi email HTML qua SMTP — phiên bản PC của Email Sender",
+  "version": "2.0.0",
+  "description": "Email Sender cho desktop với giao diện Glass, SMTP nâng cao và đa ngôn ngữ",
   "main": "main/main.mjs",
   "scripts": {
     "build:renderer": "vite build",
@@ -11,7 +11,7 @@
   },
   "type": "module",
   "build": {
-    "appId": "com.emailsender.desktop",
+    "appId": "com.namtran.es.desktop",
     "productName": "Email Sender",
     "directories": {
       "output": "release"

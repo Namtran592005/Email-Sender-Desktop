@@ -1,23 +1,27 @@
-// Desktop theme — white/black palette with gold accents, refined for a polished desktop feel
+// Email Sender Glass — white surfaces with blue, red and green accents.
 export const palette = {
-  bg: '#FAFAFB',
-  bgSoft: '#F2F2F5',
+  bg: '#FFFFFF',
+  bgSoft: '#F7F9FC',
   surface: '#FFFFFF',
-  surfaceAlt: '#FAFAFC',
-  sidebar: 'linear-gradient(180deg, #F8F8FA 0%, #EFEFF2 100%)',
-  cardBorder: 'rgba(0,0,0,0.055)',
-  hairline: 'rgba(0,0,0,0.09)',
-  ink: '#111111',
-  body: '#3A3A3E',
-  mutedStrong: '#6C6C70',
-  muted: '#98989E',
-  gold: '#1C1C1E',
-  goldDark: '#6C6C70',
-  goldSoft: 'rgba(28,28,30,0.08)',
-  error: '#FF3B30',
-  success: '#34C759',
-  info: '#0A84FF',
-  inputBg: '#EFEFF4',
+  surfaceAlt: '#FBFCFE',
+  sidebar: 'rgba(255,255,255,0.82)',
+  cardBorder: 'rgba(23,24,27,0.10)',
+  hairline: 'rgba(23,24,27,0.14)',
+  ink: '#17181B',
+  body: '#45474F',
+  mutedStrong: '#62656D',
+  muted: '#8A8D95',
+  gold: '#1A73E8',
+  goldDark: '#0B57D0',
+  goldSoft: 'rgba(26,115,232,0.10)',
+  red: '#EA4335',
+  green: '#34A853',
+  error: '#EA4335',
+  success: '#34A853',
+  info: '#1A73E8',
+  inputBg: '#F4F6F9',
+  editorBg: '#0D1117',
+  editorText: '#DCE5F0',
 };
 
 export const radii = {
@@ -29,12 +33,12 @@ export const radii = {
 };
 
 export const shadows = {
-  card: '0 8px 24px rgba(0,0,0,0.07)',
-  soft: '0 3px 8px rgba(0,0,0,0.04)',
-  circle: '0 5px 14px rgba(0,0,0,0.08)',
-  lift: '0 10px 30px rgba(0,0,0,0.10)',
-  modal: '0 24px 64px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.08)',
-  btn: '0 3px 10px rgba(0,0,0,0.16)',
+  card: '0 12px 34px rgba(32, 38, 56, 0.08)',
+  soft: '0 3px 12px rgba(32, 38, 56, 0.05)',
+  circle: '0 5px 18px rgba(26,115,232,0.16)',
+  lift: '0 16px 36px rgba(32, 38, 56, 0.13)',
+  modal: '0 24px 64px rgba(32, 38, 56, 0.22), 0 4px 12px rgba(32, 38, 56, 0.08)',
+  btn: '0 5px 14px rgba(26,115,232,0.22)',
 };
 
 export const fonts = {

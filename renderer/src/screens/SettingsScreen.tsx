@@ -4,9 +4,12 @@ import { palette, radii, shadows, typography } from '../theme';
 import { useApp } from '../AppProvider';
 import { useToast } from '../components/Toast';
 import type { SmtpAccount } from '../lib';
+import { LANGUAGES, type Language, useLanguage } from '../i18n';
 
 const emptyAccount = (): SmtpAccount => ({
   id: '', name: '', host: '', port: '465', tls: true, user: '', pass: '', fromName: '', fromEmail: '',
+  advancedMode: false, security: 'SSL', authMethod: 'LOGIN', connectTimeout: '30', socketTimeout: '60',
+  heloName: '', requireTls: false, ignoreTLSErrors: false, maxConnections: '1',
 });
 
 function Field({ label, value, onChange, placeholder, type = 'text', small = false }: {
@@ -39,6 +42,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', small = fal
 export default function SettingsScreen() {
   const app = useApp();
   const toast = useToast();
+  const { language, setLanguage, t } = useLanguage();
   const [editing, setEditing] = useState<SmtpAccount | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
 
@@ -111,6 +115,13 @@ export default function SettingsScreen() {
         App gửi thư trực tiếp qua SMTP từ máy của bạn. Với Gmail, dùng App password (Quản lý tài khoản → Bảo mật → Ứng dụng có mật khẩu).
       </p>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0 18px', padding: '11px 13px', background: 'rgba(255,255,255,0.84)', border: `1px solid ${palette.cardBorder}`, borderRadius: radii.md }}>
+        <label htmlFor="language-select" style={{ ...typography.label, flex: 1 }}>{t('language')}</label>
+        <select id="language-select" value={language} onChange={(e) => { void setLanguage(e.target.value as Language); }} style={{ border: `1px solid ${palette.hairline}`, borderRadius: radii.sm, padding: '7px 10px', color: palette.ink, background: '#FFF' }}>
+          {LANGUAGES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </div>
+
       {app.accounts.length === 0 && !editing && (
         <div style={{ background: palette.bgSoft, borderRadius: radii.lg, padding: 28, textAlign: 'center', color: palette.mutedStrong, marginTop: 16 }}>
           Chưa có tài khoản SMTP nào. Bấm <b>+ Thêm tài khoản</b> để bắt đầu.
@@ -138,6 +149,10 @@ export default function SettingsScreen() {
               />
               Bật TLS / SSL
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: palette.body }}>
+              <input type="checkbox" checked={Boolean(editing.advancedMode)} onChange={(e) => setEditing({ ...editing, advancedMode: e.target.checked })} />
+              {t('advancedMode')}
+            </label>
             <button
               onClick={() => test(editing)}
               disabled={!!testing}
@@ -162,6 +177,24 @@ export default function SettingsScreen() {
               Lưu
             </button>
           </div>
+          {editing.advancedMode && (
+            <div style={{ marginTop: 16, padding: 14, background: palette.bgSoft, border: `1px solid ${palette.cardBorder}`, borderRadius: radii.md }}>
+              <div style={{ ...typography.subtitle, fontSize: 14 }}>{t('advancedMode')}</div>
+              <p style={{ ...typography.caption, color: palette.mutedStrong, marginTop: 5 }}>{t('advancedHint')}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 150 }}><div style={{ ...typography.label, marginBottom: 5 }}>{t('security')}</div><select value={editing.security || 'SSL'} onChange={(e) => setEditing({ ...editing, security: e.target.value as NonNullable<SmtpAccount['security']>, tls: e.target.value !== 'None' })} style={{ width: '100%', padding: '9px 10px', border: 'none', borderRadius: radii.sm, color: palette.ink }}><option value="SSL">{t('ssl')}</option><option value="STARTTLS">{t('starttls')}</option><option value="None">{t('none')}</option></select></div>
+                <div style={{ flex: 1, minWidth: 150 }}><div style={{ ...typography.label, marginBottom: 5 }}>{t('authMethod')}</div><select value={editing.authMethod || 'LOGIN'} onChange={(e) => setEditing({ ...editing, authMethod: e.target.value as NonNullable<SmtpAccount['authMethod']> })} style={{ width: '100%', padding: '9px 10px', border: 'none', borderRadius: radii.sm, color: palette.ink }}><option value="LOGIN">{t('login')}</option><option value="PLAIN">{t('plain')}</option><option value="CRAM-MD5">{t('cramMd5')}</option><option value="None">{t('none')}</option></select></div>
+                <Field label={t('connectTimeout')} small value={editing.connectTimeout || '30'} onChange={(v) => setEditing({ ...editing, connectTimeout: v })} placeholder="30" />
+                <Field label={t('socketTimeout')} small value={editing.socketTimeout || '60'} onChange={(v) => setEditing({ ...editing, socketTimeout: v })} placeholder="60" />
+                <Field label={t('maxConnections')} small value={editing.maxConnections || '1'} onChange={(v) => setEditing({ ...editing, maxConnections: v })} placeholder="1" />
+                <Field label={t('heloName')} value={editing.heloName || ''} onChange={(v) => setEditing({ ...editing, heloName: v })} placeholder="mail.example.com" />
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 13 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: palette.body }}><input type="checkbox" checked={Boolean(editing.requireTls)} onChange={(e) => setEditing({ ...editing, requireTls: e.target.checked })} />{t('requireTls')}</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: palette.body }}><input type="checkbox" checked={Boolean(editing.ignoreTLSErrors)} onChange={(e) => setEditing({ ...editing, ignoreTLSErrors: e.target.checked })} />{t('ignoreTlsErrors')}</label>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

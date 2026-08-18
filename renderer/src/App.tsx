@@ -6,6 +6,8 @@ import {
 import { palette, radii, shadows, typography, transitions } from './theme';
 import { AppProvider, useApp } from './AppProvider';
 import { ToastProvider } from './components/Toast';
+import { LanguageProvider, useLanguage } from './i18n';
+import type { SentEmail } from './lib';
 import ComposeScreen from './screens/ComposeScreen';
 import DraftsScreen from './screens/DraftsScreen';
 import TemplatesScreen from './screens/TemplatesScreen';
@@ -14,15 +16,16 @@ import SettingsScreen from './screens/SettingsScreen';
 
 type Page = 'compose' | 'drafts' | 'templates' | 'sent' | 'settings';
 
-const NAV: { id: Page; label: string; icon: typeof PenSquare; badge?: (app: ReturnType<typeof useApp>) => number }[] = [
-  { id: 'drafts', label: 'Nháp', icon: FileText, badge: (app) => app.drafts.length },
-  { id: 'templates', label: 'Mẫu', icon: BookOpenText, badge: (app) => app.templates.length },
-  { id: 'sent', label: 'Đã gửi', icon: Send, badge: (app) => app.sent.length },
-  { id: 'settings', label: 'Cài đặt', icon: Settings },
+const NAV: { id: Page; labelKey: string; icon: typeof PenSquare; badge?: (app: ReturnType<typeof useApp>) => number }[] = [
+  { id: 'drafts', labelKey: 'drafts', icon: FileText, badge: (app) => app.drafts.length },
+  { id: 'templates', labelKey: 'templates', icon: BookOpenText, badge: (app) => app.templates.length },
+  { id: 'sent', labelKey: 'sent', icon: Send, badge: (app) => app.sent.length },
+  { id: 'settings', labelKey: 'settings', icon: Settings },
 ];
 
 function Shell() {
   const app = useApp();
+  const { t } = useLanguage();
   const initialPage = (() => {
     const p = new URLSearchParams(location.search).get('page');
     return (['compose', 'drafts', 'templates', 'sent', 'settings'] as const).includes(p as Page) ? (p as Page) : 'compose';
@@ -33,6 +36,7 @@ function Shell() {
   const [composeKey, setComposeKey] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(initialDraftId);
   const [templateId, setTemplateId] = useState<string | null>(initialTemplateId);
+  const [sentEmail, setSentEmail] = useState<SentEmail | null>(null);
 
   // Resolve URL-based draft/template after the seed has populated data
   useEffect(() => {
@@ -52,22 +56,29 @@ function Shell() {
     }
   }, [app.drafts.length, app.templates.length]);
 
-  const openCompose = (opts?: { draftId?: string; templateId?: string }) => {
+  const openCompose = (opts?: { draftId?: string; templateId?: string; sentEmail?: SentEmail }) => {
     setDraftId(opts?.draftId || null);
     setTemplateId(opts?.templateId || null);
+    setSentEmail(opts?.sentEmail || null);
     setComposeKey((k) => k + 1);
     setPage('compose');
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: palette.bg }}>
+    <div style={{ display: 'flex', height: '100vh', background: palette.bg, position: 'relative', overflow: 'hidden' }}>
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+        <span style={{ position: 'absolute', width: 330, height: 330, borderRadius: '50%', border: `42px solid ${palette.red}`, opacity: 0.08, top: -160, right: -110 }} />
+        <span style={{ position: 'absolute', width: 390, height: 390, borderRadius: '50%', border: `48px solid ${palette.gold}`, opacity: 0.08, bottom: -205, left: 110 }} />
+        <span style={{ position: 'absolute', width: 210, height: 210, borderRadius: '50%', border: `34px solid ${palette.green}`, opacity: 0.08, top: '39%', right: -132 }} />
+      </div>
       {/* Sidebar */}
       <aside style={{
         width: 236, background: palette.sidebar, borderRight: `1px solid ${palette.cardBorder}`,
-        display: 'flex', flexDirection: 'column', padding: '22px 14px', flexShrink: 0,
+        display: 'flex', flexDirection: 'column', padding: '22px 14px', flexShrink: 0, zIndex: 1,
       }}>
         <div style={{ padding: '4px 10px', marginBottom: 20 }}>
           <div style={{ ...typography.title, fontSize: 18 }}>Email Sender</div>
+          <div style={{ ...typography.caption, color: palette.gold, marginTop: 3, fontWeight: 600 }}>{t('appTagline')}</div>
         </div>
 
         <button
@@ -81,7 +92,7 @@ function Shell() {
           onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
         >
-          <PenSquare size={16} /> Soạn thư mới
+          <PenSquare size={16} /> {t('newMessage')}
         </button>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -95,7 +106,7 @@ function Shell() {
                 onClick={() => setPage(item.id)}
                 whileTap={{ scale: 0.98 }}
                 style={{
-                  background: active ? '#FFFFFF' : 'transparent',
+                  background: active ? 'rgba(255,255,255,0.92)' : 'transparent',
                   border: '1.5px solid transparent',
                   borderLeft: `3px solid ${active ? palette.gold : 'transparent'}`,
                   borderRadius: '10px 14px 14px 10px',
@@ -116,7 +127,7 @@ function Shell() {
                 }}
               >
                 <Icon size={17} color={active ? palette.ink : palette.mutedStrong} />
-                <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
+                <span style={{ flex: 1, textAlign: 'left' }}>{t(item.labelKey)}</span>
                 {count !== undefined && count > 0 && (
                   <span style={{
                     background: palette.goldSoft, color: palette.ink, borderRadius: radii.pill,
@@ -133,15 +144,15 @@ function Shell() {
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', background: palette.bg }}>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', background: 'transparent', zIndex: 1 }}>
         <motion.div key={page} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto', flex: 1 }}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18 }}>
-          {page === 'compose' && <ComposeScreen key={composeKey} draftId={draftId} templateId={templateId} onDone={() => setPage('sent')} />}
+          {page === 'compose' && <ComposeScreen key={composeKey} draftId={draftId} templateId={templateId} sentEmail={sentEmail} onDone={() => setPage('sent')} />}
           {page === 'drafts' && <DraftsScreen onOpenDraft={(id) => openCompose({ draftId: id })} />}
           {page === 'templates' && <TemplatesScreen onUseTemplate={(id) => openCompose({ templateId: id })} />}
-          {page === 'sent' && <SentScreen />}
+          {page === 'sent' && <SentScreen onReuse={(email) => openCompose({ sentEmail: email })} />}
           {page === 'settings' && <SettingsScreen />}
         </motion.div>
       </main>
@@ -151,10 +162,12 @@ function Shell() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppProvider>
-        <Shell />
-      </AppProvider>
-    </ToastProvider>
+    <LanguageProvider>
+      <ToastProvider>
+        <AppProvider>
+          <Shell />
+        </AppProvider>
+      </ToastProvider>
+    </LanguageProvider>
   );
 }

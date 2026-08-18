@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('dataApi', {
   clear: () => ipcRenderer.invoke('data:clear'),
 });
 
+contextBridge.exposeInMainWorld('languageApi', {
+  get: () => ipcRenderer.invoke('language:get'),
+  set: (language) => ipcRenderer.invoke('language:set', language),
+});
+
 contextBridge.exposeInMainWorld('fileApi', {
   pick: (options) => ipcRenderer.invoke('file:pick', options),
 });

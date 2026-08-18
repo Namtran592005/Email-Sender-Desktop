@@ -11,15 +11,19 @@ import { LinkModal } from '../components/LinkModal';
 import { ColorPickerModal } from '../components/ColorPickerModal';
 import { AccountPickerModal } from '../components/AccountPickerModal';
 import { TemplateLibrary } from '../components/TemplateLibrary';
-import { buildEmailHtml, formatBytes, isValidEmail, type Attachment, type Draft, type Template } from '../lib';
+import { buildEmailHtml, formatBytes, isValidEmail, type Attachment, type Draft, type SentEmail, type Template } from '../lib';
+import { useLanguage } from '../i18n';
 
 const COLORS = ['#282522', '#C9913B', '#B3261E', '#1E6B3A', '#1B5BA6', '#6B1B8F', '#817A73', '#F3D27A'];
 
-interface ComposeProps { draftId?: string | null; templateId?: string | null; onDone?: () => void; }
+interface ComposeProps { draftId?: string | null; templateId?: string | null; sentEmail?: SentEmail | null; onDone?: () => void; }
 
-export default function ComposeScreen({ draftId, templateId, onDone }: ComposeProps) {
+const reusableBody = (html: string) => html.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] || html;
+
+export default function ComposeScreen({ draftId, templateId, sentEmail, onDone }: ComposeProps) {
   const app = useApp();
   const toast = useToast();
+  const { t } = useLanguage();
 
   const editorRef = useRef<RichEditorHandle>(null);
   const codeRef = useRef<HTMLTextAreaElement>(null);
@@ -59,9 +63,10 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
   useEffect(() => {
     let mounted = true;
     (async () => {
-      let restored: Draft | null = null;
-      if (draftId) restored = app.drafts.find((d) => d.id === draftId) || null;
-      if (restored) {
+      try {
+        let restored: Draft | null = null;
+        if (draftId) restored = app.drafts.find((d) => d.id === draftId) || null;
+        if (restored) {
         draftIdRef.current = restored.id || null;
         setTo(restored.to || '');
         setCc(Array.isArray(restored.cc) ? restored.cc : []);
@@ -80,13 +85,29 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
           attachments: Array.isArray(restored.attachments) ? restored.attachments.filter((a) => a && a.data) : [],
         };
         toast({ type: 'info', message: 'Đã khôi phục nháp.' });
-      } else {
-        const t = (templateId && app.templates.find((x) => x.id === templateId)) || app.templates.find((x) => x.isDefault) || null;
-        setTemplate(t);
-        setBody((t && t.bodyHtml) || '');
-        savedRef.current = { to: '', cc: [], bcc: [], subject: '', body: (t && t.bodyHtml) || '', attachments: [] };
+        } else if (sentEmail) {
+          const reusedHtml = reusableBody(sentEmail.html || '');
+          const reusedAttachments = Array.isArray(sentEmail.attachments) ? sentEmail.attachments.filter((a) => a && a.data) : [];
+          setTo(sentEmail.to || '');
+          setCc([]);
+          setBcc([]);
+          setSubject(sentEmail.subject || '');
+          setBody(reusedHtml);
+          setAttachments(reusedAttachments);
+          setTemplate(null);
+          savedRef.current = { to: sentEmail.to || '', cc: [], bcc: [], subject: sentEmail.subject || '', body: reusedHtml, attachments: reusedAttachments };
+          toast({ type: 'info', message: t('reusedMessage') });
+        } else {
+          const t = (templateId && app.templates.find((x) => x.id === templateId)) || app.templates.find((x) => x.isDefault) || null;
+          setTemplate(t);
+          setBody((t && t.bodyHtml) || '');
+          savedRef.current = { to: '', cc: [], bcc: [], subject: '', body: (t && t.bodyHtml) || '', attachments: [] };
+        }
+      } catch (error) {
+        toast({ type: 'error', message: `Không thể khôi phục nội dung soạn thư: ${(error as Error).message}` });
+      } finally {
+        if (mounted) { loadedRef.current = true; setLoaded(true); }
       }
-      if (mounted) { loadedRef.current = true; setLoaded(true); }
     })();
     return () => { mounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -343,7 +364,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px',
-        borderBottom: `1px solid ${palette.cardBorder}`,
+        borderBottom: `1px solid ${palette.cardBorder}`, background: 'rgba(255,255,255,0.92)',
       }}>
         <h2 style={{ ...typography.title, fontSize: 20, margin: 0, flex: 1 }}>Soạn thư</h2>
         {configuredCount === 0 && (
@@ -369,7 +390,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       </div>
 
       {/* Recipient fields */}
-      <div style={{ padding: '14px 24px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '14px 24px 10px', display: 'flex', flexDirection: 'column', gap: 8, background: 'rgba(255,255,255,0.58)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ ...typography.label, width: 64 }}>To</span>
           <textarea
@@ -385,10 +406,10 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
             onClick={() => setCcbccOpen(true)}
             aria-label="Mở Cc / Bcc"
             style={{
-              background: cc.length || bcc.length ? palette.ink : 'rgba(28,28,30,0.06)',
+              background: cc.length || bcc.length ? palette.gold : 'rgba(26,115,232,0.07)',
               border: 'none', borderRadius: 999, padding: '7px 13px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 5,
-              color: cc.length || bcc.length ? '#F0D78C' : palette.body,
+              color: cc.length || bcc.length ? '#FFF' : palette.body,
               boxShadow: cc.length || bcc.length ? shadows.btn : 'none',
               transition: transitions.fast, flexShrink: 0,
             }}
@@ -416,8 +437,8 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       </div>
 
       {/* Body toolbar + mode switcher */}
-      <div style={{ padding: '8px 24px', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={{ display: 'flex', background: palette.bgSoft, borderRadius: radii.pill, border: `1px solid ${palette.cardBorder}`, overflow: 'hidden' }}>
+      <div style={{ padding: '8px 24px', display: 'flex', gap: 10, alignItems: 'center', borderTop: `1px solid ${palette.cardBorder}`, background: 'rgba(255,255,255,0.78)' }}>
+        <div style={{ display: 'flex', background: palette.bgSoft, borderRadius: radii.pill, border: `1px solid ${palette.cardBorder}`, overflow: 'hidden', padding: 2 }}>
           {(['write', 'code', 'preview'] as const).map((m) => (
             <button
               key={m}
@@ -425,7 +446,7 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
               style={{
                 background: view === m ? palette.gold : 'transparent',
                 color: view === m ? '#FFF' : palette.body,
-                border: 'none', padding: '6px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                border: 'none', borderRadius: radii.pill, padding: '6px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: transitions.fast,
               }}
             >
               {m === 'write' ? 'Write' : m === 'code' ? 'Code' : 'Preview'}
@@ -454,14 +475,14 @@ export default function ComposeScreen({ draftId, templateId, onDone }: ComposePr
       </div>
 
       {/* Toolbar for write mode */}
-      {view === 'write' && (
-        <div style={{ padding: '0 24px 8px' }}>
+        {view === 'write' && (
+          <div style={{ padding: '0 24px 8px' }}>
           <Toolbar onAction={handleToolbar} states={states} />
         </div>
       )}
 
       {/* Body editor */}
-      <div style={{ flex: 1, padding: '0 24px 8px', minHeight: 0, overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: '0 24px 8px', minHeight: 0, overflowY: 'auto', background: 'rgba(255,255,255,0.72)' }}>
         {view === 'write' && (
           <RichEditor ref={editorRef} initialHtml={body} onChange={(html) => { setBody(html); markDirty(); }} />
         )}

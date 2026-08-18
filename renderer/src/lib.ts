@@ -6,6 +6,15 @@ export interface SmtpAccount {
   host: string;
   port: string;
   tls: boolean;
+  advancedMode?: boolean;
+  security?: 'SSL' | 'STARTTLS' | 'None';
+  authMethod?: 'LOGIN' | 'PLAIN' | 'CRAM-MD5' | 'None';
+  connectTimeout?: string;
+  socketTimeout?: string;
+  heloName?: string;
+  requireTls?: boolean;
+  ignoreTLSErrors?: boolean;
+  maxConnections?: string;
   user: string;
   pass: string;
   fromName: string;

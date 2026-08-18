@@ -1,6 +1,4 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from 'electron';
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('use-angle', 'swiftshader-webgl');
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -45,6 +43,7 @@ const DEFAULT_KEY = 'smtp_default';
 
 let smtpAccounts = readJson(SMTP_KEY, []);
 let defaultSmtpId = readJson(DEFAULT_KEY, '');
+let appLanguage = ['en', 'vi', 'id', 'th', 'ja', 'ko', 'zh', 'es'].includes(readJson('language', 'vi')) ? readJson('language', 'vi') : 'vi';
 
 const cleanAccount = (a) => ({
   id: a && typeof a.id === 'string' && a.id ? a.id : `a${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
@@ -52,6 +51,15 @@ const cleanAccount = (a) => ({
   host: typeof (a && a.host) === 'string' ? a.host : '',
   port: typeof (a && a.port) === 'string' && a.port ? a.port : '465',
   tls: (a && a.tls) !== false,
+  advancedMode: Boolean(a && a.advancedMode),
+  security: a && ['SSL', 'STARTTLS', 'None'].includes(a.security) ? a.security : ((a && a.tls) === false ? 'None' : 'SSL'),
+  authMethod: a && ['LOGIN', 'PLAIN', 'CRAM-MD5', 'None'].includes(a.authMethod) ? a.authMethod : 'LOGIN',
+  connectTimeout: typeof (a && a.connectTimeout) === 'string' && a.connectTimeout ? a.connectTimeout : '30',
+  socketTimeout: typeof (a && a.socketTimeout) === 'string' && a.socketTimeout ? a.socketTimeout : '60',
+  heloName: typeof (a && a.heloName) === 'string' ? a.heloName : '',
+  requireTls: Boolean(a && a.requireTls),
+  ignoreTLSErrors: Boolean(a && a.ignoreTLSErrors),
+  maxConnections: typeof (a && a.maxConnections) === 'string' && a.maxConnections ? a.maxConnections : '1',
   user: typeof (a && a.user) === 'string' ? a.user : '',
   pass: typeof (a && a.pass) === 'string' ? a.pass : '',
   fromName: typeof (a && a.fromName) === 'string' ? a.fromName : 'Email Sender',
@@ -66,8 +74,29 @@ function smtpIsConfigured(c) {
 // ---------------------------------------------------------------------------
 // SMTP client — same protocol flow as the mobile app (smtp.js)
 // ---------------------------------------------------------------------------
-const CONNECT_TIMEOUT = 15000;
+const CONNECT_TIMEOUT = 30000;
 const SESSION_TIMEOUT = 60000;
+
+function secondsToMs(value, fallback) {
+  const seconds = Number.parseInt(String(value), 10);
+  return Math.min(Math.max(Number.isFinite(seconds) ? seconds : fallback / 1000, 3), 300) * 1000;
+}
+function normalizeSmtpConfig(cfg) {
+  const base = { ...cfg };
+  const simpleSecurity = base.tls === false ? 'None' : 'SSL';
+  const security = base.advancedMode && ['SSL', 'STARTTLS', 'None'].includes(base.security) ? base.security : simpleSecurity;
+  const authMethod = base.advancedMode && ['LOGIN', 'PLAIN', 'CRAM-MD5', 'None'].includes(base.authMethod) ? base.authMethod : 'LOGIN';
+  return {
+    ...base,
+    security,
+    authMethod,
+    connectTimeout: secondsToMs(base.connectTimeout, CONNECT_TIMEOUT),
+    socketTimeout: secondsToMs(base.socketTimeout, SESSION_TIMEOUT),
+    heloName: String(base.heloName || '').trim(),
+    requireTls: Boolean(base.requireTls),
+    ignoreTLSErrors: Boolean(base.ignoreTLSErrors),
+  };
+}
 
 function utf8Bytes(s) {
   const bytes = [];
@@ -108,28 +137,22 @@ function parseReply(lines) {
   const codeMatch = last.match(/^(\d{3})\s/);
   return { code: codeMatch ? parseInt(codeMatch[1], 10) : 0, text: lines.join('\n').trim() };
 }
-const isStartTlsPort = (p) => {
-  const n = Number(p) || 465;
-  return n === 587 || n === 25;
-};
-
 function runSession(cfg, actions) {
-  const c = { tls: true, port: 465, tlsCheckValidity: true, ...cfg };
+  const c = { tls: true, port: 465, ...normalizeSmtpConfig(cfg) };
   const port = Number(c.port) || 465;
-  const secure = c.tls !== false;
-  const starttls = secure && isStartTlsPort(port);
-  const tlsOpts =
-    c.tlsCheckValidity === false
-      ? { rejectUnauthorized: false }
-      : { servername: c.host };
+  const secure = c.security === 'SSL';
+  const starttls = c.security === 'STARTTLS';
+  const tlsOpts = { servername: c.host, rejectUnauthorized: !c.ignoreTLSErrors };
   return new Promise((resolve, reject) => {
     let sock = null;
     let settled = false;
     let sessionTimer = null;
+    let connectTimer = null;
     const finish = (err, value) => {
       if (settled) return;
       settled = true;
       if (sessionTimer) clearTimeout(sessionTimer);
+      if (connectTimer) clearTimeout(connectTimer);
       if (sock) {
         try { sock.removeAllListeners(); } catch {}
         try { sock.destroy(); } catch {}
@@ -159,7 +182,7 @@ function runSession(cfg, actions) {
       new Promise((resolveReply, rejectReply) => {
         const t = setTimeout(
           () => rejectReply(new Error(`SMTP timeout waiting for server. Received: ${JSON.stringify(buffer.slice(-200))}`)),
-          20000
+          c.socketTimeout
         );
         waiters.push({
           resolveReply: (v) => { clearTimeout(t); resolveReply(v); },
@@ -175,14 +198,22 @@ function runSession(cfg, actions) {
       if (sock) sock.write(s);
       else throw new Error('Not connected');
     };
-    sessionTimer = setTimeout(() => finish(new Error('SMTP session timeout')), SESSION_TIMEOUT);
+    sessionTimer = setTimeout(() => finish(new Error('SMTP session timeout')), c.socketTimeout);
+    connectTimer = setTimeout(() => finish(new Error(`SMTP connection timeout after ${c.connectTimeout / 1000}s`)), c.connectTimeout);
     const upgradeToTls = () => {
       if (!starttls) return Promise.resolve();
-      const secureSocket = tls.connect({ socket: sock, ...tlsOpts });
-      secureSocket.on('secure', () => {});
-      secureSocket.on('error', (e) => finish(new Error(`STARTTLS error: ${e.message}`)));
-      sock = secureSocket;
-      return new Promise((r) => setTimeout(r, 250));
+      return new Promise((resolve, reject) => {
+        const secureSocket = tls.connect({ socket: sock, ...tlsOpts });
+        secureSocket.once('secureConnect', () => {
+          sock = secureSocket;
+          sock.setTimeout(c.socketTimeout, () => finish(new Error('SMTP socket timeout')));
+          sock.on('data', (chunk) => { buffer += chunk.toString('utf8'); flush(); });
+          sock.on('error', (e) => finish(new Error(`STARTTLS error: ${e.message}`)));
+          sock.on('close', () => finish(new Error('SMTP connection closed')));
+          resolve();
+        });
+        secureSocket.once('error', (e) => reject(new Error(`STARTTLS error: ${e.message}`)));
+      });
     };
     const doActions = () => {
       try {
@@ -191,11 +222,15 @@ function runSession(cfg, actions) {
         if (p && p.catch) p.catch((e) => finish(e));
       } catch (e) { finish(e); }
     };
-    if (secure && !starttls) {
-      sock = tls.connect({ host: c.host, port, connectTimeout: CONNECT_TIMEOUT, ...tlsOpts }, doActions);
+    const onConnected = () => {
+      if (connectTimer) clearTimeout(connectTimer);
+      sock?.setTimeout(c.socketTimeout, () => finish(new Error('SMTP socket timeout')));
+      doActions();
+    };
+    if (secure) {
+      sock = tls.connect({ host: c.host, port, ...tlsOpts }, onConnected);
     } else {
-      sock = net.createConnection({ host: c.host, port, connectTimeout: CONNECT_TIMEOUT }, doActions);
-      sock.on('connect', () => {});
+      sock = net.createConnection({ host: c.host, port }, onConnected);
     }
     sock.on('data', (chunk) => { buffer += chunk.toString('utf8'); flush(); });
     sock.on('error', (e) => finish(new Error(`Connection error: ${e.message}`)));
@@ -204,9 +239,26 @@ function runSession(cfg, actions) {
 }
 
 async function authFlow(send, recv, c) {
-  send(`AUTH PLAIN ${b64(`\u0000${c.user}\u0000${c.pass}`)}`);
-  let auth = await recv();
-  if (auth.code !== 235) {
+  if (c.authMethod === 'None') return;
+  if (!c.user || !c.pass) throw new Error('SMTP authentication requires username and password.');
+  if (c.authMethod === 'PLAIN') {
+    send(`AUTH PLAIN ${b64(`\u0000${c.user}\u0000${c.pass}`)}`);
+    const auth = await recv();
+    if (auth.code !== 235) throw new Error(`AUTH PLAIN failed: ${auth.text}`);
+    return;
+  }
+  if (c.authMethod === 'CRAM-MD5') {
+    send('AUTH CRAM-MD5');
+    const challenge = await recv();
+    if (challenge.code !== 334) throw new Error(`AUTH CRAM-MD5 unavailable: ${challenge.text}`);
+    const digest = crypto.createHmac('md5', Buffer.from(challenge.text.replace(/^334\s*/, ''), 'base64')).update(c.pass, 'utf8').digest('hex');
+    send(b64(`${c.user} ${digest}`));
+    const auth = await recv();
+    if (auth.code !== 235) throw new Error(`AUTH CRAM-MD5 failed: ${auth.text}`);
+    return;
+  }
+  // LOGIN is explicit by default; legacy accounts previously fell back from PLAIN to LOGIN.
+  if (c.authMethod === 'LOGIN') {
     send('AUTH LOGIN');
     let r = await recv();
     if (r.code !== 334) throw new Error('SMTP auth failed');
@@ -214,9 +266,11 @@ async function authFlow(send, recv, c) {
     r = await recv();
     if (r.code !== 334) throw new Error('SMTP auth failed');
     send(b64(c.pass));
-    auth = await recv();
+    const auth = await recv();
+    if (auth.code !== 235) throw new Error(`AUTH LOGIN failed: ${auth.text}`);
+    return;
   }
-  if (auth.code !== 235) throw new Error(`Auth failed: ${auth.text}`);
+  throw new Error(`Unsupported SMTP authentication method: ${c.authMethod}`);
 }
 
 async function buildMessage(mail, cfg) {
@@ -262,15 +316,16 @@ async function buildMessage(mail, cfg) {
 }
 
 async function sendEmailWithConfig(mail, cfg) {
-  const c = { ...cfg };
+  const c = normalizeSmtpConfig(cfg);
   if (!c.host || !c.port) throw new Error('Missing SMTP host/port. Configure SMTP in Settings.');
-  if (!c.user || !c.pass) throw new Error('Missing SMTP username/password.');
+  if (c.authMethod !== 'None' && (!c.user || !c.pass)) throw new Error('Missing SMTP username/password.');
   if (!c.fromEmail) throw new Error('Missing sender email.');
+  if (c.requireTls && c.security === 'None') throw new Error('This account requires TLS. Choose SSL/TLS or STARTTLS.');
   const { dotStuffed, recipients, ccList, bccList } = await buildMessage(mail, c);
   return runSession(c, async ({ send, write, recv, finish, starttls, upgrade }) => {
     const greet = await recv();
     if (greet.code !== 220) throw new Error(greet.text);
-    send(`EHLO ${c.host || 'localhost'}`);
+    send(`EHLO ${c.heloName || c.host || 'localhost'}`);
     const ehlo = await recv();
     if (ehlo.code !== 250) throw new Error(ehlo.text);
     if (starttls) {
@@ -278,7 +333,7 @@ async function sendEmailWithConfig(mail, cfg) {
       const st = await recv();
       if (st.code !== 220) throw new Error(st.text);
       await upgrade();
-      send(`EHLO ${c.host || 'localhost'}`);
+      send(`EHLO ${c.heloName || c.host || 'localhost'}`);
       const ehlo2 = await recv();
       if (ehlo2.code !== 250) throw new Error(ehlo2.text);
     }
@@ -304,27 +359,30 @@ async function sendEmailWithConfig(mail, cfg) {
 }
 
 async function testConnection(cfg) {
-  const c = { ...cfg };
+  const c = normalizeSmtpConfig(cfg);
   if (!c.host || !c.port) throw new Error('Missing host/port.');
+  if (c.requireTls && c.security === 'None') throw new Error('This account requires TLS. Choose SSL/TLS or STARTTLS.');
   return runSession(c, async ({ send, recv, finish, starttls, upgrade }) => {
     const greet = await recv();
     if (greet.code !== 220) throw new Error(`Server: ${greet.text}`);
-    send(`EHLO ${c.host}`);
+    send(`EHLO ${c.heloName || c.host}`);
     const ehlo = await recv();
     if (ehlo.code !== 250) throw new Error(`EHLO failed: ${ehlo.text}`);
-    if (c.user && c.pass) {
-      if (starttls) {
-        send('STARTTLS');
-        const st = await recv();
-        if (st.code !== 220) throw new Error(st.text);
-        await upgrade();
-        send(`EHLO ${c.host}`);
-        const ehlo2 = await recv();
-        if (ehlo2.code !== 250) throw new Error(`EHLO failed: ${ehlo2.text}`);
-      }
+    if (starttls) {
+      send('STARTTLS');
+      const st = await recv();
+      if (st.code !== 220) throw new Error(st.text);
+      await upgrade();
+      send(`EHLO ${c.heloName || c.host}`);
+      const ehlo2 = await recv();
+      if (ehlo2.code !== 250) throw new Error(`EHLO failed: ${ehlo2.text}`);
+    }
+    if (c.authMethod !== 'None') {
+      if (c.user && c.pass) {
       await authFlow(send, recv, c);
-    } else {
+      } else {
       throw new Error('Enter username and password to test authentication.');
+      }
     }
     send('QUIT');
     await recv().catch(() => {});
@@ -340,9 +398,9 @@ function makeStore(name, fallback) {
   return {
     name,
     list: () => readJson(name, fallback),
-    write(list) {
+    write(list, { notify = true } = {}) {
       writeJson(name, list);
-      stores.emit(name, list);
+      if (notify) stores.emit(name, list);
     },
   };
 }
@@ -466,6 +524,12 @@ app.on('activate', () => {
 // ---------------------------------------------------------------------------
 ipcMain.handle('smtp:list', () => smtpAccounts.map(cleanAccount));
 ipcMain.handle('smtp:default', () => defaultSmtpId || '');
+ipcMain.handle('language:get', () => appLanguage);
+ipcMain.handle('language:set', (event, language) => {
+  appLanguage = ['en', 'vi', 'id', 'th', 'ja', 'ko', 'zh', 'es'].includes(language) ? language : 'vi';
+  writeJson('language', appLanguage);
+  return { ok: true, language: appLanguage };
+});
 ipcMain.handle('smtp:save', (event, list, defId) => {
   smtpAccounts = (Array.isArray(list) ? list : []).map(cleanAccount);
   persistAccounts();
@@ -503,6 +567,7 @@ ipcMain.handle('data:clear', () => {
     }
     smtpAccounts = [];
     defaultSmtpId = '';
+    appLanguage = 'vi';
     draftsStore.write([]);
     templatesStore.write([]);
     sentStore.write([]);
@@ -536,7 +601,10 @@ ipcMain.handle('file:pick', async (event, { multiple = true } = {}) => {
 for (const store of [draftsStore, templatesStore, sentStore]) {
   ipcMain.handle(`${store.name}:list`, () => store.list());
   ipcMain.handle(`${store.name}:save`, (event, list) => {
-    store.write(list);
+    // The invoking renderer updates its own local state after the IPC call.
+    // Avoid sending the same large list straight back across IPC, particularly
+    // drafts with attachment base64 data, because that can stall the UI.
+    store.write(list, { notify: false });
     return { ok: true };
   });
 }

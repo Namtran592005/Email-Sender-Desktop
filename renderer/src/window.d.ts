@@ -12,6 +12,10 @@ declare global {
     dataApi: {
       clear: () => Promise<{ ok: boolean; message?: string }>;
     };
+    languageApi: {
+      get: () => Promise<string>;
+      set: (language: string) => Promise<{ ok: boolean; language: string }>;
+    };
     fileApi: {
       pick: (options?: { multiple?: boolean }) => Promise<{ canceled: boolean; files: { id: string; name: string; size: number; data: string }[] }>;
     };
