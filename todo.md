@@ -9,4 +9,4 @@
 - [x] Bundle renderer để xác minh bản vá giao diện modal và Compose.
 - [x] Đóng gói lại Windows portable ZIP x64 từ source có modal trắng và xác minh checksum artifact mới.
 - [x] Chẩn đoán hiện tượng giật khung hình và tối ưu hiệu năng Electron/React để thao tác mượt hơn.
-- [ ] Chụp lại giao diện bản tối ưu, thay ảnh minh họa cũ và cập nhật source/artifact lên nhánh GitHub phát hành mới.
+- [x] Chụp lại giao diện bản tối ưu, thay ảnh minh họa cũ và cập nhật source/artifact lên nhánh GitHub phát hành mới.
